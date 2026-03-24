@@ -568,7 +568,7 @@ footer p{color:#333;font-size:12px}
           <input type="hidden" id="editId">
           <div style="margin-bottom:11px">
             <div class="sec-ttl" style="margin-bottom:9px">📸 صور المنتج</div>
-            <div class="img-upload-area"><input type="file" accept="image/*" multiple onchange="handleImages(event)"><span>📷</span><p style="color:#555;font-size:12px;margin-top:5px">اضغط أو اسحب الصور — تُرفع على Firebase Storage</p></div>
+            <div class="img-upload-area"><input type="file" accept="image/*" multiple onchange="handleImages(event)"><span>📷</span><p style="color:#555;font-size:12px;margin-top:5px">اضغط أو اسحب الصور — تُحفظ مباشرة</p></div>
             <div class="img-previews" id="imgPreviews"></div>
           </div>
           <details style="margin-bottom:13px">
@@ -1229,12 +1229,8 @@ async function saveProduct(){
   try{
     const {db,collection,doc,addDoc,updateDoc,serverTimestamp}=window._fb;
 
-    // Upload new images to Firebase Storage
-    let finalImages=[...formImages.filter(s=>s.startsWith('http'))]; // keep existing URLs
-    for(let i=0;i<formImageFiles.length;i++){
-      const url=await uploadImage(formImageFiles[i],`products/${Date.now()}_${i}_${formImageFiles[i].name}`);
-      finalImages.push(url);
-    }
+    // Use base64 images directly — no Storage needed
+    let finalImages=[...formImages];
 
     const sv=document.getElementById('pStock').value;
     const prod={

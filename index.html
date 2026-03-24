@@ -17,26 +17,24 @@ import { getStorage, ref, uploadString, getDownloadURL, deleteObject }
 // ╔══════════════════════════════════════════════════════════╗
 // ║  🔥 ضع إعدادات Firebase هنا — انظر الشرح في الأسفل    ║
 // ╚══════════════════════════════════════════════════════════╝
-const firebaseConfig = {
-  apiKey:            "AIzaSyCroSqvjQSKy8k-Cx5Me2N8TZ93kTHhVbk",
-  authDomain:        "store-d16b4.firebaseapp.com",
-  projectId:         "store-d16b4",
-  storageBucket:     "store-d16b4.firebasestorage.app",
-  messagingSenderId: "802855715170",
-  appId:             "1:802855715170:web:7a02aa9cd73ef4715c6c3b"
-};
+// Firebase config — loaded dynamically from setup
+let firebaseConfig = {};
 // ══════════════════════════════════════════════════════════
 
-const app  = initializeApp(firebaseConfig);
-const db   = getFirestore(app);
-const stor = getStorage(app);
-
-// ── expose to window so non-module code can call ──
-window._fb = { db, stor, collection, doc, getDoc, getDocs, setDoc, addDoc,
-               updateDoc, deleteDoc, onSnapshot, serverTimestamp, query,
-               orderBy, ref, uploadString, getDownloadURL, deleteObject };
-window._fbReady = true;
-document.dispatchEvent(new Event('fbReady'));
+// Firebase initialized after setup
+window._initFirebase = (config) => {
+  try {
+    const app  = initializeApp(config);
+    const db   = getFirestore(app);
+    window._fb = { db, collection, doc, getDoc, getDocs, setDoc, addDoc,
+                   updateDoc, deleteDoc, onSnapshot, serverTimestamp, query, orderBy };
+    window._fbReady = true;
+    document.dispatchEvent(new Event('fbReady'));
+    return true;
+  } catch(e) {
+    return false;
+  }
+};
 </script>
 
 <style>
@@ -682,21 +680,29 @@ async function completeSetup(){
   if(!fc.apiKey||!fc.projectId){showSetupErr('أدخل API Key و Project ID على الأقل');return;}
   if(!pass){showSetupErr('اختر كلمة سر للإدارة');return;}
 
-  // Save firebase config + store config locally
-  setLocalCfg(fc);
-  cfg={name:storeName,cur,pass,tgToken,tgChat};
-
   showSetupErr('');
   document.querySelector('.setup-save-btn').textContent='⏳ جاري الإعداد...';
 
-  // Save initial cfg to Firestore
+  // Initialize Firebase with user config
+  const ok = window._initFirebase(fc);
+  if(!ok){showSetupErr('❌ خطأ في إعدادات Firebase — تحقق من القيم');document.querySelector('.setup-save-btn').textContent='🚀 تشغيل المتجر';return;}
+
+  // Save config locally and to Firestore
+  setLocalCfg(fc);
+  cfg={name:storeName,cur,pass,tgToken,tgChat};
+
   try{
     await saveCfgToDb();
     document.getElementById('setupScreen').classList.remove('show');
     showToast('✅ تم إعداد المتجر بنجاح!');
-    await initStore();
+    fb=window._fb;
+    await loadCategoriesFromDb();
+    applyConfig();
+    listenProducts();
+    listenOrders();
+    document.getElementById('loadingScreen').style.display='none';
   }catch(e){
-    showSetupErr('❌ خطأ في الاتصال بـ Firebase — تأكد من الإعدادات: '+e.message);
+    showSetupErr('❌ خطأ في الاتصال بـ Firebase: '+e.message);
     document.querySelector('.setup-save-btn').textContent='🚀 تشغيل المتجر';
   }
 }
@@ -788,8 +794,23 @@ async function initStore(){
 }
 
 window.addEventListener("load",()=>{
+  const savedCfg = getLocalCfg();
+  if(!savedCfg){
+    // First time — show setup screen
+    document.getElementById('loadingScreen').style.display='none';
+    document.getElementById('setupScreen').classList.add('show');
+    return;
+  }
+  // Init Firebase with saved config
+  const ok = window._initFirebase(savedCfg);
+  if(!ok){
+    document.getElementById('loadingScreen').style.display='none';
+    document.getElementById('setupScreen').classList.add('show');
+    return;
+  }
   onFbReady(async()=>{
     try{
+      fb=window._fb;
       await loadCfgFromDb();
       await loadCategoriesFromDb();
       applyConfig();
@@ -798,9 +819,8 @@ window.addEventListener("load",()=>{
       document.getElementById("loadingScreen").style.display="none";
     }catch(e){
       document.getElementById("loadingScreen").style.display="none";
-      document.getElementById("loadingScreen").style.display="none";
+      document.getElementById('setupScreen').classList.add('show');
       console.error("Firebase error:",e);
-      alert("خطأ في الاتصال بـ Firebase: "+e.message);
     }
   });
 });

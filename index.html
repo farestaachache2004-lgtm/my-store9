@@ -794,8 +794,11 @@ async function initStore(){
 }
 
 window.addEventListener("load",()=>{
+  // Clear old config if it was from previous hardcoded version
   const savedCfg = getLocalCfg();
-  if(!savedCfg){
+  const isValid = savedCfg && savedCfg.apiKey && !savedCfg.apiKey.includes('XXXX');
+  if(!isValid){
+    localStorage.removeItem('fb_config');
     // First time — show setup screen
     document.getElementById('loadingScreen').style.display='none';
     document.getElementById('setupScreen').classList.add('show');
@@ -1295,3 +1298,4 @@ const origCheckoutHTML=document.getElementById('checkoutBox').innerHTML;
 </script>
 </body>
 </html>
+
